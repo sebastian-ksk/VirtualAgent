@@ -1,0 +1,4 @@
+%% Enter Location of Input files %%
+/home/pi/Desktop/RealAgent/src/AquaCrop_OsPy/AquaCropOS_v50a/Input
+%% Enter Location of Output files %%
+/home/pi/Desktop/RealAgent/src/AquaCrop_OsPy/AquaCropOS_v50a/Output
