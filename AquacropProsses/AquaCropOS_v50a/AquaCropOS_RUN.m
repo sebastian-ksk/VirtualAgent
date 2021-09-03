@@ -1,4 +1,4 @@
-%function [] = AquaCropOS_RUN()
+function [] = AquaCropOS_RUN()
 % ---------------------------------------------------------------------- %
 % Tim Foster                                                             %
 % June 2016                                                              %
@@ -7,8 +7,7 @@
 %                                                                        %
 % ---------------------------------------------------------------------- %
 
-%% Declare global variables %%p
-disp('Run AquaCrop');
+%% Declare global variables %%
 global AOS_ClockStruct
 
 %% Run model %%
@@ -23,4 +22,4 @@ end
 % Finish simulation
 AOS_Finish();
 
-%end
+end

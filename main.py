@@ -8,18 +8,19 @@ from model.ModelirrigProperties import irrigation_properties
 
 from model.ModelPrescriptionResult import PrescriptionResults
 from services.mqttComunication import MqttComunication
-from services.xbeeCommunication import XbeeCommunication
 from services.PrescriptionMethods import prescriptionMethods
 
-# from AquaCrop_OsPy.AquaCrop_OsPy.AquaCrop_OS_v5  import AquaCrop_os
+
+from AquacropProsses.DataProperties import DataProperties
+from AquacropProsses.DocumentWriteRetuns import DocumentWriteRetuns
+from AquacropProsses.Aquacrop import Aquacrop_os
+from model.AquacropParameters import ParametersAquacrop
 
 """
 librerias externas al sistema 
 """
 import signal
-from apscheduler.schedulers.background import (
-    BackgroundScheduler,
-)  # para programar tareas
+from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, date, time, timedelta  # para fechas y hora
 import time as timedelay  # para cronometrar tiempo
 from threading import Thread
@@ -40,8 +41,8 @@ class Main:
         print("init data")
 
         self.groundDivision = "Tibasosa"
-
-        self.agent = int(input("ingrese el numero del agente : "))
+        self.agent = 1
+        # self.agent = int(input("ingrese el numero del agente : "))
         self.FlagPrescriptionDone = False
         self.FlagOrderIrrigSend = False
         self.FlagirrigationAuthor = False
@@ -59,46 +60,21 @@ class Main:
 
         # estacion meteorlogica
         """consulta a estacion metereologica a las 00:00 todos los dias """
-        self.apiServiceMet = ApiServiceEstacionMet(DatMet)
-        self.schedWeatherSatation = BackgroundScheduler()
-        self.schedWeatherSatation.add_job(
-            self.apiServiceMet.checkStation, "cron", hour=23, minute=58
+        self.dirDataWheaterStation = (
+            "/home/sebastianc/Desktop/VirtualAgent/storage/WheatherStationData.csv"
         )
-        self.schedWeatherSatation.start()
+        self.apiServiceMet = ApiServiceEstacionMet(DatMet, self.dirDataWheaterStation)
+
+        # self.schedWeatherSatation = BackgroundScheduler()
+        # self.schedWeatherSatation.add_job(
+        #     self.apiServiceMet.checkStation, "cron", hour=23, minute=58
+        # )
+        # self.schedWeatherSatation.start()
 
         self.schedRebootAgent = BackgroundScheduler()
         self.schedRebootAgent.add_job(self.RebootAgent, "cron", hour=23, minute=50)
         self.schedRebootAgent.start()
 
-        self.schedWeatherStation_2 = BackgroundScheduler()
-        self.schedWeatherStation_2.add_job(self.Station_2, "cron", hour=23, minute=33)
-        self.schedWeatherStation_2.start()
-
-        """        
-         self.schedPres_Aqucarop = BackgroundScheduler()
-        self.schedPres_Aqucarop.add_job(self.Pres_Aquacrop, 'cron', hour = 0,  minute =1)
-        self.schedPres_Aqucarop.start() 
-        """
-
-        self.schedWeatherStation_0m = BackgroundScheduler()
-        self.schedWeatherStation_0m.add_job(self.Station_15m, "cron", minute=0)
-        self.schedWeatherStation_0m.start()
-
-        self.schedWeatherStation_15m = BackgroundScheduler()
-        self.schedWeatherStation_15m.add_job(self.Station_15m, "cron", minute=15)
-        self.schedWeatherStation_15m.start()
-
-        self.schedWeatherStation_30m = BackgroundScheduler()
-        self.schedWeatherStation_30m.add_job(self.Station_15m, "cron", minute=30)
-        self.schedWeatherStation_30m.start()
-
-        self.schedWeatherStation_45m = BackgroundScheduler()
-        self.schedWeatherStation_45m.add_job(self.Station_15m, "cron", minute=45)
-        self.schedWeatherStation_45m.start()
-
-        self.Path_Data = "/home/pi/Desktop/RealAgent/src/storage"
-        print("Aquacrop Init...")
-        self.AquaCrop_os = AquaCrop_os()
         # modelo defaul del cultivo
         self.cropModel = Crop(
             "Maize", 20, 80, "Moisture_Sensor", 11, date(2020, 1, 1), "00:00", "00:00"
@@ -106,16 +82,37 @@ class Main:
         # modelo propiedades de riego
         self.IrrigProperties = irrigation_properties()
 
+        # Modelo de sensores
+        self.sensors = Sensors(self.cropModel.typeCrop, "0x000000000")
         print("-- firebase -- ")
         # conexion a firebase y actualizacion de datos
+        self.FirebaseName = f"sebastiancastell371.{self.groundDivision}_{self.agent}"
         self.FB = FIREBASE_CLASS(
-            f"{self.groundDivision}_{self.agent}",
+            self.FirebaseName,
             self.cropModel,
             self.IrrigProperties,
         )
-        # Modelo de sensores
-        self.sensors = Sensors(self.cropModel.typeCrop, "0x000000000")
-        print(f"niveles de sensores: { self.sensors._SensorsLevels}")
+
+        self.Path_Data = "/home/pi/Desktop/RealAgent/src/storage"
+        print("Aquacrop Init...")
+        self.parametersAQ = ParametersAquacrop(
+            crop=self.cropModel.typeCrop,
+            fc1=self.cropModel.FieldCap,
+            pwp1=self.cropModel.pointWp,
+            fc2=self.cropModel.FieldCap - 1.7,
+            pwp2=self.cropModel.pointWp - 0.5,
+            saturationPoint=self.cropModel.FieldCap + 10,
+            layer1=0.1,
+            layer2=0.1,
+            hidraulic_conduc=1.07,
+            seedDate=str(self.cropModel.seedTime),
+            daysCrop=121,
+        )
+        self.AquaCrop_os = Aquacrop_os(
+            DataProperties(), DocumentWriteRetuns(), self.parametersAQ.parameters
+        )
+
+        # print(f"niveles de sensores: { self.sensors._SensorsLevels}")
         # Modelo Resultados de prescripciones
         self.prescriptionResult = PrescriptionResults(
             "--",
@@ -131,8 +128,8 @@ class Main:
             0,
             0,
             0,
-        )  # resultados de prescripcion
-        # modelo de metodos de prescripciones
+        )
+
         self.presc_Meth = prescriptionMethods(
             self.cropModel, self.sensors, self.prescriptionResult, self.apiServiceMet
         )  # inicializacion de metodos de prescripcion
@@ -140,22 +137,6 @@ class Main:
         """========Inicializacion de Protocolos de comunicacion ====="""
         self.Mqtt = MqttComunication(self.agent, self.groundDivision, self.AquaCrop_os)
         timedelay.sleep(5)
-
-        print("---------XbeeCommunication --------------------")
-        self.xbeeComm = XbeeCommunication(
-            "/dev/ttyUSB0",
-            9600,
-            self.sensors,
-            self.FB,
-            self.agent,
-            self.TimePrescription,
-            self.IrrigAplied,
-        )
-        self.subproces_XbeeCallBack = Thread(target=self.xbeeComm.runCallback)
-        self.subproces_XbeeCallBack.daemon = True
-        self.subproces_XbeeCallBack.start()
-
-        # print(sensor.allSensors)
 
     def realAgentPrescription(self):
         print("init program")
@@ -169,14 +150,13 @@ class Main:
                     self.CurrentTime - self.HourSendIrrigOrder
                 ).total_seconds()
                 if self.duration_in_s >= self.TimePrescription:
-                    self.xbeeComm.sendIrrigationOrder("SSTOPP;1;", self.agent)
-                    self.xbeeComm.save_data_Xbee(
-                        f"{self.Path_Data}/RegisterIrrigation.txt",
-                        self.SendPrescription,
-                    )
                     try:
                         self.FB.ResultIrrDoc_ref.update(
-                            {"irrigationApplied": float(self.IrrigAplied)}
+                            {
+                                "irrigationApplied": float(self.IrrigAplied),
+                                "IrrigationTime": self.TimePrescription,
+                                "IrrigationState": "OFF",
+                            }
                         )
                     except:
                         print("error update data irrigationApplied")
@@ -225,6 +205,7 @@ class Main:
                             {
                                 "NetPrescription": self.ActualPrescription,
                                 "LastPrescriptionDate": str(self.today),
+                                "prescriptionDone": "true",
                             }
                         )
                     except:
@@ -280,16 +261,11 @@ class Main:
                                 self.SendPrescription,
                             )
                             if self.TimePrescription > 0:
-                                self.xbeeComm.sendIrrigationOrder(
-                                    f"SITASK;1;{self.TimePrescription};", self.agent
-                                )
+
                                 self.FlagOrderIrrigSend = True
                                 self.HourSendIrrigOrder = datetime.now()
                             else:
-                                self.xbeeComm.save_data_Xbee(
-                                    f"{self.Path_Data}/RegisterIrrigation.txt",
-                                    self.SendPrescription,
-                                )
+                                pass
 
                             self.IrrigAplied = self.IrrigAplied + self.SendPrescription
 
@@ -301,7 +277,7 @@ class Main:
                                 self.IrrigAplied = 0
                             try:
                                 self.FB.ResultIrrDoc_ref.update(
-                                    {"IrrigationState": "SENDORDER"}
+                                    {"IrrigationState": "ON"}
                                 )
                             except:
                                 print("Error upload IrrigationState Send Order")
@@ -360,14 +336,6 @@ class Main:
         return int(self.timeSeconds)
 
     def RebootAgent(self):
-        if self.xbeeComm.numberCompletedOrders > 0:
-            self.realIrrigAplication = (
-                self.TotalPrescription / 2
-            ) * self.xbeeComm.numberCompletedOrders
-            if self.xbeeComm.numberReceivedOrders > self.xbeeComm.numberCompletedOrders:
-                print("probable desperdicio de agua")
-        else:
-            self.realIrrigAplication = 0
 
         self.SaveFile = open(self.fileRealIrrigAplication, "a", errors="ignore")
         print(f"deficit {self.prescriptionResult.allDataPrescription[4]}")
@@ -380,6 +348,12 @@ class Main:
         self.Mqtt.FlagIrrigation = False
         self.Mqtt.FlagNewIrrigation = False
         print("Agent ReStart...")
+
+    def dailysimulation(self):
+        self.MeteoData = self.apiServiceMet.checkStation()
+        print(self.MeteoData)
+
+        pass
 
     def Station_2(self):
         os.system(
@@ -400,7 +374,10 @@ class Main:
 
 if __name__ == "__main__":
     MainSystem = Main()
-    timedelay.sleep(5)
-    subproces_PrincF = Thread(target=MainSystem.realAgentPrescription())
-    subproces_PrincF.daemon = True
-    subproces_PrincF.start()
+    MainSystem.dailysimulation()
+    # MainSystem.AquaCrop_os.main()
+
+    # timedelay.sleep(5)
+    # subproces_PrincF = Thread(target=MainSystem.realAgentPrescription())
+    # subproces_PrincF.daemon = True
+    # subproces_PrincF.start()

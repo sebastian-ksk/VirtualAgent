@@ -59,7 +59,7 @@ if (FieldMngt.Bunds == 0) || (FieldMngt.zBund < 0.001)
         Runoff = 0;
         Infl = P;
     else
-        Runoff = (term^2)/(P+(1-(5/100))*S);
+        Runoff = (term.^2)/(P+(1-(5/100))*S);
         Infl = P-Runoff;
     end
 else

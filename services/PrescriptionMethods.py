@@ -4,9 +4,9 @@ import math
 class prescriptionMethods():
     def __init__(self,crop,sensors,prescriptionResult,apiServiceEstacionMet):
         self.apiServiceEstacionMet = apiServiceEstacionMet
-        self.pathStorage = '/home/pi/Desktop/RealAgent/src/storage/Prescription_History.txt'
-        self.pahtRealIrrigation = '/home/pi/Desktop/RealAgent/src/storage/RealIrrigationApplication.txt'
-        self.directoryWeatherStation = '/home/pi/Desktop/RealAgent/src/storage/WheatherStationData.txt'
+        self.pathStorage = '/home/sebastianc/Desktop/VirtualAgent/storage/Prescription_History.txt'
+        self.pahtRealIrrigation = '/home/sebastianc/Desktop/VirtualAgent/storage/RealIrrigationApplication.txt'
+        self.directoryWeatherStation = '/home/sebastianc/Desktop/VirtualAgent/storage/WheatherStationData.txt'
         self.crop = crop
         self.sensors = sensors
         self.prescriptionResult = prescriptionResult

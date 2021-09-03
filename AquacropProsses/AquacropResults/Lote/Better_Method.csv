@@ -1,0 +1,3 @@
+GSeason	Crop	PlantD	PlantSD	HarvestCD	HarvestSD	Yield	TotIrr	Unnamed: 8	IWUE(Kg/m3)	WUE(Kg/m3)	Total rain	method
+1	Potato	06/03/2021	1	03/07/2021	120	12.76	90.29		141.32	22.87	467.68	VWC_pres
+1	Potato	06/03/2021	1	03/07/2021	120	12.76	90.29		141.32	22.87	467.68	Weather_Station_pres

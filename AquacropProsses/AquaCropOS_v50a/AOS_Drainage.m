@@ -79,7 +79,7 @@ for ii = 1:Soil.nComp
                 thX = InitCond.th_fc_Adj(ii);
             end
         else
-            thX = Soil.Layer.th_s(layer)+0.01;
+            thX = Soil.Layer.th_s(layeri)+0.01;
         end
         
         % Check thX against hydraulic properties of current soil layer

@@ -16,7 +16,9 @@ class FIREBASE_CLASS:
     def __init__(self, AgentName, cropModel, IrrigProperties):
         self.IrrigProperties = IrrigProperties
         self.cropModel = cropModel
-        self.PathCredentials = "/home/pi/Desktop/RealAgent/src/data/ClaveFirebase.json"
+        self.PathCredentials = (
+            "/home/sebastianc/Desktop/VirtualAgent/data/ClaveFirebase.json"
+        )
         self.urlDatabase = "https://manageragents-119d1-default-rtdb.firebaseio.com/"
         self.AgentName = AgentName
         cred = credentials.Certificate(self.PathCredentials)
@@ -98,6 +100,7 @@ class FIREBASE_CLASS:
                     "irrigationApplied": 0,
                     "IrrigationState": "off",
                     "IrrigationTime": 0,
+                    "prescriptionDone": "false",
                 }
             )
         doc = self.SensorsDoc_ref.get()

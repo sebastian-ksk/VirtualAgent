@@ -38,8 +38,6 @@ StartRow = find(Dates==StartDate);
 EndRow = find(Dates==EndDate);
 
 % Store data for simulation period
-WeatherDB = [Dates(StartRow:EndRow),Tmin(StartRow:EndRow),...
-    Tmax(StartRow:EndRow),P(StartRow:EndRow),...
-    Et0(StartRow:EndRow)];
+WeatherDB = [Dates(StartRow:EndRow),Tmin(StartRow:EndRow),Tmax(StartRow:EndRow),P(StartRow:EndRow),Et0(StartRow:EndRow)];
 
 end

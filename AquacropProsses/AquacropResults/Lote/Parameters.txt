@@ -1,0 +1,30 @@
+CODE             Tibasosa2
+LAT                5.77498
+LON               -72.9840
+AREA               6028.08
+CLAY                 21.92
+SILT                 54.70
+SAND                 24.88
+SP                   58.92
+FC1010              46.200
+PWP1010             26.030
+HC                    1.07
+DENSITY               1.14
+TYPE SOIL         SiltLoam
+CROP            Potato.CRO
+MODEL               BETTER
+SEEDTIME        2021-03-06
+DAYS_CROP              121
+PRESCRIPTION             0
+Ks                       0
+DAY_START                0
+WEEK                     0
+Kc                     NaN
+root depth             NaN
+TAW                    NaN
+MAE                    NaN
+L1                  0.1
+L2                  0.1
+FC1020              45.737
+PWP1020             25.47
+Name: 14, dtype: object

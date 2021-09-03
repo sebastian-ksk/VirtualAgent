@@ -55,8 +55,7 @@ for ii = 1:nCrops
         % Extract data
         IrrEvents = Data{1,4}(:);
         % Convert dates to serial date format
-        
-        IrrDates = (datenum(Data{1,3},Data{1,2},Data{1,1}));
+        IrrDates = datenum(Data{1,3},Data{1,2},Data{1,1});
         % Create full time series
         StartDate = AOS_ClockStruct.SimulationStartDate;
         EndDate = AOS_ClockStruct.SimulationEndDate;
