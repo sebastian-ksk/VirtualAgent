@@ -1,2 +1,2 @@
 GSeason	Crop	PlantD	PlantSD	HarvestCD	HarvestSD	Yield	TotIrr	
-   1	Potato	03/09/2021	       1	31/12/2021	     120	 0.00	  0.00	
+   1	Potato	06/09/2021	       1	03/01/2022	     120	 0.00	 20.00	

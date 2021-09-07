@@ -50,6 +50,8 @@ class ApiServiceEstacionMet:
         ]
         with open(self.directory, "a") as dataF:
             writer = csv.writer(dataF, delimiter="\t")
-            writer.writerow(self.newLineData)
+            writer.writerow(
+                self.newLineData,
+            )
         dataF.close()
         return self.infoStation

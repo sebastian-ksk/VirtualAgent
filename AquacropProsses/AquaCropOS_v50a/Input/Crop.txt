@@ -6,9 +6,9 @@ CalendarType : 1
 %% Convert calendar to GDD mode if inputs are given in calendar days ('0': No; '1': Yes) %%
 SwitchGDD : 0  
 %% Planting Date (dd/mm) %%
-PlantingDate : 03/09
+PlantingDate : 06/09
 %% Latest Harvest Date (dd/mm) %%
-HarvestDate : 01/01
+HarvestDate : 04/01
 %% Growing degree/Calendar days from sowing to emergence/transplant recovery %%
 Emergence : 15  
 %% Growing degree/Calendar days from sowing to maximum rooting %%

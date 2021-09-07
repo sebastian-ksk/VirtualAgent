@@ -32,6 +32,7 @@ import requests
 import json
 import urllib
 import json
+import pandas as pd
 
 
 class Main:
@@ -350,10 +351,92 @@ class Main:
         print("Agent ReStart...")
 
     def dailysimulation(self):
-        self.MeteoData = self.apiServiceMet.checkStation()
-        print(self.MeteoData)
+        self.today = str(
+            datetime.strptime(str(datetime.now()).split()[0], "%Y-%m-%d")
+        ).split()[0]
+        self.yesterday = str(
+            datetime.strptime(
+                str(datetime.now() - timedelta(days=1)).split()[0], "%Y-%m-%d"
+            )
+        ).split()[0]
+        self.meteoData = self.apiServiceMet.checkStation()
 
-        pass
+        self.prescHistoryDF = pd.read_csv(
+            "/home/sebastianc/Desktop/VirtualAgent/AquacropProsses/AquacropResults/Lote/VWC_pres2.csv",
+            sep="\t",
+        )
+        df = self.prescHistoryDF.set_index(self.prescHistoryDF["Date"])
+        self.prescData = self.prescriptionResult.allDataPrescription
+        depletion, Kc, Ks = (
+            round(self.prescData[4], 2),
+            round(self.prescData[5], 2),
+            round(self.prescData[9], 2),
+        )
+        ETcadj, ETc, root_depth = (
+            round(self.prescData[10], 2),
+            round(self.prescData[12], 2),
+            round(self.prescData[6] * 1000, 2),
+        )
+        effRain, dTaw, mad = (
+            round(self.prescData[11], 2),
+            round(self.prescData[7], 2),
+            round(self.prescData[8] * 1000, 2),
+        )
+        presc, VWC1, VWC2 = (
+            round(self.sensors.allSensors[3], 3),
+            round(self.sensors.allSensors[4], 3),
+            round(self.prescData[3], 3),
+        )
+        self.IrrigAplied = 20
+        if str(self.cropModel.seedTime).strip() == self.today.strip():
+            self.totalRain, self.totalIrr = self.meteoData.RainD, self.IrrigAplied
+        else:
+            self.totalRain = (
+                float(df.at[self.yesterday, "Total rain"]) + self.meteoData.RainD
+            )
+            self.totalIrr = (
+                float(df.at[self.yesterday, "Total irrigation"]) + self.IrrigAplied
+            )
+
+        df.at[self.today, "Tmin(C)"] = self.meteoData.TeMin
+        df.at[self.today, "Tmax(C)"] = self.meteoData.TeMax
+        df.at[self.today, "ET0"] = self.meteoData.EToD
+        df.at[self.today, "Rain(mm)"] = self.meteoData.RainD
+        df.at[self.today, "Irrigation(mm)"] = self.IrrigAplied
+        df.at[self.today, "depl"] = depletion
+        df.at[self.today, "ks"] = Ks
+        df.at[self.today, "sp_crcoeff"] = Kc
+        df.at[self.today, "ETcadj"] = ETcadj
+        df.at[self.today, "ETc"] = ETc
+        df.at[self.today, "eff_rain"] = effRain
+        df.at[self.today, "sp_rootdepth"] = root_depth
+        df.at[self.today, "d_TAW"] = dTaw
+        df.at[self.today, "d_MAD"] = mad
+        df.at[self.today, "WC1"] = VWC1
+        df.at[self.today, "WC2"] = VWC2
+        df.at[self.today, "Total rain"] = self.totalRain
+        df.at[self.today, "Total irrigation"] = self.totalIrr
+        df.at[self.today, "Prescription(mm)"] = presc
+
+        df.to_csv(
+            "/home/sebastianc/Desktop/VirtualAgent/AquacropProsses/AquacropResults/Lote/VWC_pres2.csv",
+            index=False,
+            sep="\t",
+            float_format="%.2f",
+        )
+        self.finalYield = self.AquaCrop_os.main()
+        self.wue = (self.finalYield / self.totalIrr) * 1000
+        self.Iwue = (self.finalYield / (self.totalIrr + self.totalRain)) * 1000
+        df.at[self.today, "Yiel(ton/ha)"] = self.finalYield
+        df.at[self.today, "WUE (Kg/m3)"] = self.wue
+        df.at[self.today, "IWUE (Kg/m3)"] = self.Iwue
+
+        df.to_csv(
+            "/home/sebastianc/Desktop/VirtualAgent/AquacropProsses/AquacropResults/Lote/VWC_pres2.csv",
+            index=False,
+            sep="\t",
+            float_format="%.2f",
+        )
 
     def Station_2(self):
         os.system(

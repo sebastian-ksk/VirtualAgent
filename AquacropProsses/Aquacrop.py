@@ -344,20 +344,20 @@ class Aquacrop_os:
         print(p)
         time.sleep(5)
 
-        CropGrowth = pd.read_csv(
+        self.CropGrowth = pd.read_csv(
             self.path_AQ_os + "/Output/Sample_CropGrowth.txt", sep="\t"
         )
-        FinalOutput = pd.read_csv(
+        self.FinalOutput = pd.read_csv(
             self.path_AQ_os + "/Output/Sample_FinalOutput.txt", sep="\t"
         )
-        WaterContents = CropGrowth = pd.read_csv(
+        self.WaterContents = CropGrowth = pd.read_csv(
             self.path_AQ_os + "/Output/Sample_WaterContents.txt", sep="\t"
         )
-        WaterFluxes = CropGrowth = pd.read_csv(
+        self.WaterFluxes = CropGrowth = pd.read_csv(
             self.path_AQ_os + "/Output/Sample_WaterFluxes.txt", sep="\t"
         )
 
-        return WaterFluxes, CropGrowth, FinalOutput, WaterContents
+        return self.WaterFluxes, self.CropGrowth, self.FinalOutput, self.WaterContents
 
     def main(self):
 
@@ -382,5 +382,13 @@ class Aquacrop_os:
         self.Edit_Irr("VWC_pres2", self.EndDaysCrop)
 
         print("init aquacrop")
-        asyncio.run(self.RunModel())
+        (
+            self.WaterFluxes,
+            self.CropGrowth,
+            self.FinalOutput,
+            self.WaterContents,
+        ) = asyncio.run(self.RunModel())
+        self.FinalYield = float(self.FinalOutput.at[0, "Yield"])
+
         print("end aquacrop")
+        return self.FinalYield
