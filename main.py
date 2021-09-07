@@ -15,6 +15,7 @@ from AquacropProsses.DataProperties import DataProperties
 from AquacropProsses.DocumentWriteRetuns import DocumentWriteRetuns
 from AquacropProsses.Aquacrop import Aquacrop_os
 from model.AquacropParameters import ParametersAquacrop
+from util.DocumentsCreate import DocumentsCreate
 
 """
 librerias externas al sistema 
@@ -66,11 +67,11 @@ class Main:
         )
         self.apiServiceMet = ApiServiceEstacionMet(DatMet, self.dirDataWheaterStation)
 
-        # self.schedWeatherSatation = BackgroundScheduler()
-        # self.schedWeatherSatation.add_job(
-        #     self.apiServiceMet.checkStation, "cron", hour=23, minute=58
-        # )
-        # self.schedWeatherSatation.start()
+        self.schedWeatherSatation = BackgroundScheduler()
+        self.schedWeatherSatation.add_job(
+            self.dailysimulation, "cron", hour=23, minute=55
+        )
+        self.schedWeatherSatation.start()
 
         self.schedRebootAgent = BackgroundScheduler()
         self.schedRebootAgent.add_job(self.RebootAgent, "cron", hour=23, minute=50)
@@ -109,6 +110,12 @@ class Main:
             seedDate=str(self.cropModel.seedTime),
             daysCrop=121,
         )
+        DocumentsCreate(
+            HistoryDocument="/home/sebastianc/Desktop/VirtualAgent/storage/HistorycalData.csv",
+            MeteDataDocument="/home/sebastianc/Desktop/VirtualAgent/storage/WheatherStation.csv",
+            seedDate=str(self.cropModel.seedTime),
+            endDaysCrop=121,
+        )  # creacion de documentos
         self.AquaCrop_os = Aquacrop_os(
             DataProperties(), DocumentWriteRetuns(), self.parametersAQ.parameters
         )
@@ -139,7 +146,7 @@ class Main:
         self.Mqtt = MqttComunication(self.agent, self.groundDivision, self.AquaCrop_os)
         timedelay.sleep(5)
 
-    def realAgentPrescription(self):
+    def AgentPrescription(self):
         print("init program")
         self.todayMemory = date(2021, 3, 6)
         # self.todayMemory = date(datetime.now().year,datetime.now().month,datetime.now().day)
@@ -457,10 +464,10 @@ class Main:
 
 if __name__ == "__main__":
     MainSystem = Main()
-    MainSystem.dailysimulation()
+    # MainSystem.dailysimulation()
     # MainSystem.AquaCrop_os.main()
 
-    # timedelay.sleep(5)
-    # subproces_PrincF = Thread(target=MainSystem.realAgentPrescription())
-    # subproces_PrincF.daemon = True
-    # subproces_PrincF.start()
+    timedelay.sleep(5)
+    subproces_PrincF = Thread(target=MainSystem.AgentPrescription())
+    subproces_PrincF.daemon = True
+    subproces_PrincF.start()
