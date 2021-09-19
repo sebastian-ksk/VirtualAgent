@@ -72,7 +72,6 @@ class DocumentsCreate:
                         "Tmin(C)",
                         "ET0",
                         "Rain(mm)",
-                        "Irrigation(mm)",
                     ]
                 )
                 for i in range(self.EndDaysCrop + 1):

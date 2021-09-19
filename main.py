@@ -5,12 +5,9 @@ from model.ModelVarMeTereologica import meteorologicalData as DatMet
 from model.ModelCultivo import Crop
 from model.ModelSensores import Sensors
 from model.ModelirrigProperties import irrigation_properties
-
 from model.ModelPrescriptionResult import PrescriptionResults
 from services.mqttComunication import MqttComunication
 from services.PrescriptionMethods import prescriptionMethods
-
-
 from AquacropProsses.DataProperties import DataProperties
 from AquacropProsses.DocumentWriteRetuns import DocumentWriteRetuns
 from AquacropProsses.Aquacrop import Aquacrop_os
@@ -41,9 +38,13 @@ class Main:
         super(Main, self).__init__()
         """inicializacion de datos"""
         print("init data")
-
-        self.groundDivision = "Tibasosa"
+        self.nameUser = "sebastiancastell371"
+        self.groundDivision = "Tibasosa"  # esatacion de Bombeo
         self.agent = 1
+
+        self.pahtHistoricalData = f"/home/sebastianc/Desktop/VirtualAgent/storage/{self.groundDivision}{self.agent}_HistorycalData.csv"
+        self.dirDataWheaterStation = f"/home/sebastianc/Desktop/VirtualAgent/storage/{self.groundDivision}{self.agent}_WheatherStation.csv"
+
         # self.agent = int(input("ingrese el numero del agente : "))
         self.FlagPrescriptionDone = False
         self.FlagOrderIrrigSend = False
@@ -55,28 +56,7 @@ class Main:
         self.TotalPrescription = 0
         self.FlagTotalPrescApplied = False
         self.SendPrescription = 0
-
-        self.fileRealIrrigAplication = (
-            "/home/pi/Desktop/RealAgent/src/storage/RealIrrigationApplication.txt"
-        )
-
-        # estacion meteorlogica
-        """consulta a estacion metereologica a las 00:00 todos los dias """
-        self.dirDataWheaterStation = (
-            "/home/sebastianc/Desktop/VirtualAgent/storage/WheatherStationData.csv"
-        )
-        self.apiServiceMet = ApiServiceEstacionMet(DatMet, self.dirDataWheaterStation)
-
-        self.schedWeatherSatation = BackgroundScheduler()
-        self.schedWeatherSatation.add_job(
-            self.dailysimulation, "cron", hour=23, minute=55
-        )
-        self.schedWeatherSatation.start()
-
-        self.schedRebootAgent = BackgroundScheduler()
-        self.schedRebootAgent.add_job(self.RebootAgent, "cron", hour=23, minute=50)
-        self.schedRebootAgent.start()
-
+        self.count = 10
         # modelo defaul del cultivo
         self.cropModel = Crop(
             "Maize", 20, 80, "Moisture_Sensor", 11, date(2020, 1, 1), "00:00", "00:00"
@@ -86,6 +66,7 @@ class Main:
 
         # Modelo de sensores
         self.sensors = Sensors(self.cropModel.typeCrop, "0x000000000")
+        self.sensors.allSensors = [0, 0, 0, 0, 0, 0, 0, 0, 0]
         print("-- firebase -- ")
         # conexion a firebase y actualizacion de datos
         self.FirebaseName = f"sebastiancastell371.{self.groundDivision}_{self.agent}"
@@ -95,7 +76,29 @@ class Main:
             self.IrrigProperties,
         )
 
-        self.Path_Data = "/home/pi/Desktop/RealAgent/src/storage"
+        DocumentsCreate(
+            HistoryDocument=self.pahtHistoricalData,
+            MeteDataDocument=self.dirDataWheaterStation,
+            seedDate=str(self.cropModel.seedTime),
+            endDaysCrop=121,
+        )  # creacion de documentos
+
+        # estacion meteorlogica
+        """consulta a estacion metereologica a las 00:00 todos los dias """
+        self.apiServiceMet = ApiServiceEstacionMet(DatMet, self.dirDataWheaterStation)
+        self.schedSimSensors = BackgroundScheduler()
+        self.schedSimSensors.configure(timezone="utc")
+        self.schedSimSensors.add_job(
+            self.simulationMoistureSensors,
+            "cron",
+            day_of_week="1-6",
+            hour="*",
+            minute="1,15,30,45",
+        )
+        self.schedSimSensors.start()
+        self.schedRebootAgent = BackgroundScheduler()
+        self.schedRebootAgent.add_job(self.RebootAgent, "cron", hour=23, minute=55)
+        self.schedRebootAgent.start()
         print("Aquacrop Init...")
         self.parametersAQ = ParametersAquacrop(
             crop=self.cropModel.typeCrop,
@@ -110,17 +113,15 @@ class Main:
             seedDate=str(self.cropModel.seedTime),
             daysCrop=121,
         )
-        DocumentsCreate(
-            HistoryDocument="/home/sebastianc/Desktop/VirtualAgent/storage/HistorycalData.csv",
-            MeteDataDocument="/home/sebastianc/Desktop/VirtualAgent/storage/WheatherStation.csv",
-            seedDate=str(self.cropModel.seedTime),
-            endDaysCrop=121,
-        )  # creacion de documentos
+
         self.AquaCrop_os = Aquacrop_os(
-            DataProperties(), DocumentWriteRetuns(), self.parametersAQ.parameters
+            DataProperties(),
+            DocumentWriteRetuns(),
+            self.parametersAQ.parameters,
+            self.pahtHistoricalData,
+            self.dirDataWheaterStation,
         )
 
-        # print(f"niveles de sensores: { self.sensors._SensorsLevels}")
         # Modelo Resultados de prescripciones
         self.prescriptionResult = PrescriptionResults(
             "--",
@@ -137,9 +138,13 @@ class Main:
             0,
             0,
         )
-
         self.presc_Meth = prescriptionMethods(
-            self.cropModel, self.sensors, self.prescriptionResult, self.apiServiceMet
+            self.cropModel,
+            self.sensors,
+            self.prescriptionResult,
+            self.apiServiceMet,
+            self.pahtHistoricalData,
+            self.dirDataWheaterStation,
         )  # inicializacion de metodos de prescripcion
         self.presc_Meth.Moisture_Sensor_Presc()
         """========Inicializacion de Protocolos de comunicacion ====="""
@@ -162,8 +167,9 @@ class Main:
                         self.FB.ResultIrrDoc_ref.update(
                             {
                                 "irrigationApplied": float(self.IrrigAplied),
-                                "IrrigationTime": self.TimePrescription,
+                                "IrrigationTime": self.TimePrescription * 60,
                                 "IrrigationState": "OFF",
+                                "LastIrrigationDate": str(self.today),
                             }
                         )
                     except:
@@ -193,7 +199,7 @@ class Main:
                     try:
                         self.FB.ResultIrrDoc_ref.update(
                             {
-                                "NetPrescription": self.ActualPrescription,
+                                "NetPrescription": round(self.ActualPrescription, 2),
                                 "LastPrescriptionDate": str(self.today),
                             }
                         )
@@ -254,12 +260,18 @@ class Main:
                         or self.horNouwStr == self.cropModel.secondIrrigationtime
                     ):
                         if self.FlagTotalPrescApplied == False:
-                            self.cropModel.firstIrrigationtime = (
-                                "--:--"  # para evitar bucle infinito
-                            )
-                            self.cropModel.secondIrrigationtime = (
-                                "--:--"  # para evitar bucle infinito
-                            )
+
+                            if self.horNouwStr == self.cropModel.firstIrrigationtime:
+                                self.cropModel.firstIrrigationtime = (
+                                    "--:--"  # para evitar bucle infinito
+                                )
+                                print("first irrigation")
+                            else:
+                                self.cropModel.secondIrrigationtime = (
+                                    "--:--"  # para evitar bucle infinito
+                                )
+                                print("second irrigation")
+
                             self.SendPrescription = self.TotalPrescription / 2
                             self.TimePrescription = self.calculationIrrigationTime(
                                 self.IrrigProperties._drippers,
@@ -269,26 +281,35 @@ class Main:
                                 self.SendPrescription,
                             )
                             if self.TimePrescription > 0:
-
                                 self.FlagOrderIrrigSend = True
                                 self.HourSendIrrigOrder = datetime.now()
+                                try:
+                                    self.FB.ResultIrrDoc_ref.update(
+                                        {"IrrigationState": "ON"}
+                                    )
+                                except:
+                                    print("Error upload IrrigationState Send Order")
+
                             else:
-                                pass
+                                try:
+                                    self.FB.ResultIrrDoc_ref.update(
+                                        {
+                                            "irrigationApplied": 0,
+                                            "IrrigationTime": 0,
+                                            "IrrigationState": "OFF",
+                                            "LastIrrigationDate": str(self.today),
+                                        }
+                                    )
+                                except:
+                                    print("Error upload IrrigationState Send Order")
 
                             self.IrrigAplied = self.IrrigAplied + self.SendPrescription
-
                             print(f"riego aplicado: {self.IrrigAplied}")
                             if self.IrrigAplied >= self.TotalPrescription:
                                 self.FlagTotalPrescApplied = True
                                 self.FlagPrescriptionDone = False
                                 self.FlagirrigationAuthor = False
                                 self.IrrigAplied = 0
-                            try:
-                                self.FB.ResultIrrDoc_ref.update(
-                                    {"IrrigationState": "ON"}
-                                )
-                            except:
-                                print("Error upload IrrigationState Send Order")
 
     def AgentReport(self):
         self.prescData = self.prescriptionResult.allDataPrescription
@@ -344,127 +365,205 @@ class Main:
         return int(self.timeSeconds)
 
     def RebootAgent(self):
-
-        self.SaveFile = open(self.fileRealIrrigAplication, "a", errors="ignore")
-        print(f"deficit {self.prescriptionResult.allDataPrescription[4]}")
-        self.SaveFile.write(
-            f"{str(datetime.now()).split()[0]},{str(datetime.now()).split()[1]},{self.TotalPrescription},{self.realIrrigAplication},{self.prescriptionResult.allDataPrescription[4]}\n"
-        )
-        self.SaveFile.close()
+        self.dailysimulation()
         self.FlagPrescriptionDone == True
         self.FlagTotalPrescApplied = True
         self.Mqtt.FlagIrrigation = False
         self.Mqtt.FlagNewIrrigation = False
+        self.count = 10
         print("Agent ReStart...")
 
     def dailysimulation(self):
-        self.today = str(
-            datetime.strptime(str(datetime.now()).split()[0], "%Y-%m-%d")
-        ).split()[0]
-        self.yesterday = str(
-            datetime.strptime(
-                str(datetime.now() - timedelta(days=1)).split()[0], "%Y-%m-%d"
-            )
-        ).split()[0]
-        self.meteoData = self.apiServiceMet.checkStation()
 
-        self.prescHistoryDF = pd.read_csv(
-            "/home/sebastianc/Desktop/VirtualAgent/AquacropProsses/AquacropResults/Lote/VWC_pres2.csv",
-            sep="\t",
-        )
-        df = self.prescHistoryDF.set_index(self.prescHistoryDF["Date"])
+        self.meteoData = self.apiServiceMet.checkStation()
+        self.prescHistoryDF = pd.read_csv(f"{self.pahtHistoricalData}", sep="\t")
+        self.HistDF = self.prescHistoryDF.set_index(self.prescHistoryDF["Date"])
         self.prescData = self.prescriptionResult.allDataPrescription
-        depletion, Kc, Ks = (
+        self.depletion, self.Kc, self.Ks = (
             round(self.prescData[4], 2),
             round(self.prescData[5], 2),
             round(self.prescData[9], 2),
         )
-        ETcadj, ETc, root_depth = (
+        self.ETcadj, self.ETc, self.root_depth = (
             round(self.prescData[10], 2),
             round(self.prescData[12], 2),
             round(self.prescData[6] * 1000, 2),
         )
-        effRain, dTaw, mad = (
+        self.effRain, self.dTaw, self.mad = (
             round(self.prescData[11], 2),
             round(self.prescData[7], 2),
             round(self.prescData[8] * 1000, 2),
         )
-        presc, VWC1, VWC2 = (
+        self.presc, self.VWC1, self.VWC2 = (
             round(self.sensors.allSensors[3], 3),
             round(self.sensors.allSensors[4], 3),
             round(self.prescData[3], 3),
         )
-        self.IrrigAplied = 20
-        if str(self.cropModel.seedTime).strip() == self.today.strip():
+        self.todayr = str(
+            datetime.strptime(str(datetime.now()).split()[0], "%Y-%m-%d")
+        ).split()[0]
+        self.yesterdayr = str(
+            datetime.strptime(
+                str(datetime.now() - timedelta(days=1)).split()[0], "%Y-%m-%d"
+            )
+        ).split()[0]
+
+        if str(self.cropModel.seedTime).strip() == str(self.todayr).strip():
             self.totalRain, self.totalIrr = self.meteoData.RainD, self.IrrigAplied
         else:
             self.totalRain = (
-                float(df.at[self.yesterday, "Total rain"]) + self.meteoData.RainD
+                float(self.HistDF.at[self.yesterdayr, "Total rain"])
+                + self.meteoData.RainD
             )
             self.totalIrr = (
-                float(df.at[self.yesterday, "Total irrigation"]) + self.IrrigAplied
+                float(self.HistDF.at[self.yesterdayr, "Total irrigation"])
+                + self.IrrigAplied
             )
+        print(f"Hoy es {self.todayr}")
+        self.HistDF.at[self.todayr, "Tmin(C)"] = self.meteoData.TeMin
+        self.HistDF.at[self.todayr, "Tmax(C)"] = self.meteoData.TeMax
+        self.HistDF.at[self.todayr, "ET0"] = self.meteoData.EToD
+        self.HistDF.at[self.todayr, "Rain(mm)"] = self.meteoData.RainD
+        self.HistDF.at[self.todayr, "Irrigation(mm)"] = self.IrrigAplied
+        self.HistDF.at[self.todayr, "depl"] = self.depletion
+        self.HistDF.at[self.todayr, "ks"] = self.Ks
+        self.HistDF.at[self.todayr, "sp_crcoeff"] = self.Kc
+        self.HistDF.at[self.todayr, "ETcadj"] = self.ETcadj
+        self.HistDF.at[self.todayr, "ETc"] = self.ETc
+        self.HistDF.at[self.todayr, "eff_rain"] = self.effRain
+        self.HistDF.at[self.todayr, "sp_rootdepth"] = self.root_depth
+        self.HistDF.at[self.todayr, "d_TAW"] = self.dTaw
+        self.HistDF.at[self.todayr, "d_MAD"] = self.mad
+        self.HistDF.at[self.todayr, "WC1"] = self.VWC1
+        self.HistDF.at[self.todayr, "WC2"] = self.VWC2
+        self.HistDF.at[self.todayr, "Total rain"] = self.totalRain
+        self.HistDF.at[self.todayr, "Total irrigation"] = self.totalIrr
+        self.HistDF.at[self.todayr, "Prescription(mm)"] = self.presc
 
-        df.at[self.today, "Tmin(C)"] = self.meteoData.TeMin
-        df.at[self.today, "Tmax(C)"] = self.meteoData.TeMax
-        df.at[self.today, "ET0"] = self.meteoData.EToD
-        df.at[self.today, "Rain(mm)"] = self.meteoData.RainD
-        df.at[self.today, "Irrigation(mm)"] = self.IrrigAplied
-        df.at[self.today, "depl"] = depletion
-        df.at[self.today, "ks"] = Ks
-        df.at[self.today, "sp_crcoeff"] = Kc
-        df.at[self.today, "ETcadj"] = ETcadj
-        df.at[self.today, "ETc"] = ETc
-        df.at[self.today, "eff_rain"] = effRain
-        df.at[self.today, "sp_rootdepth"] = root_depth
-        df.at[self.today, "d_TAW"] = dTaw
-        df.at[self.today, "d_MAD"] = mad
-        df.at[self.today, "WC1"] = VWC1
-        df.at[self.today, "WC2"] = VWC2
-        df.at[self.today, "Total rain"] = self.totalRain
-        df.at[self.today, "Total irrigation"] = self.totalIrr
-        df.at[self.today, "Prescription(mm)"] = presc
-
-        df.to_csv(
-            "/home/sebastianc/Desktop/VirtualAgent/AquacropProsses/AquacropResults/Lote/VWC_pres2.csv",
+        self.HistDF.to_csv(
+            f"{self.pahtHistoricalData}",
             index=False,
             sep="\t",
             float_format="%.2f",
         )
         self.finalYield = self.AquaCrop_os.main()
-        self.wue = (self.finalYield / self.totalIrr) * 1000
-        self.Iwue = (self.finalYield / (self.totalIrr + self.totalRain)) * 1000
-        df.at[self.today, "Yiel(ton/ha)"] = self.finalYield
-        df.at[self.today, "WUE (Kg/m3)"] = self.wue
-        df.at[self.today, "IWUE (Kg/m3)"] = self.Iwue
+        if self.totalIrr != 0:
+            self.wue = (self.finalYield / self.totalIrr) * 1000
+            self.Iwue = (self.finalYield / (self.totalIrr + self.totalRain)) * 1000
+        else:
+            self.wue, self.Iwue = 0, 0
 
-        df.to_csv(
-            "/home/sebastianc/Desktop/VirtualAgent/AquacropProsses/AquacropResults/Lote/VWC_pres2.csv",
+        self.HistDF.at[self.todayr, "Yiel(ton/ha)"] = self.finalYield
+        self.HistDF.at[self.todayr, "WUE (Kg/m3)"] = self.wue
+        self.HistDF.at[self.todayr, "IWUE (Kg/m3)"] = self.Iwue
+
+        self.HistDF.to_csv(
+            f"{self.pahtHistoricalData}",
             index=False,
             sep="\t",
             float_format="%.2f",
         )
 
-    def Station_2(self):
-        os.system(
-            "python3 /home/pi/Desktop/RealAgent/src/AquaCrop_OsPy/AquaCrop_OsPy/Station_2.py"
-        )
-        return
+    def simulationMoistureSensors(self):
 
-    def Station_15m(self):
-        print("station_15m")
-        os.system(
-            "python3 /home/pi/Desktop/RealAgent/src/AquaCrop_OsPy/AquaCrop_OsPy/Station_15m.py"
+        self.todaym = str(
+            datetime.strptime(str(datetime.now()).split()[0], "%Y-%m-%d")
+        ).split()[0]
+        self.dataMeteH = pd.read_csv(
+            f"{self.dirDataWheaterStation}",
+            sep="\t",
         )
-        os.system(
-            "python3 /home/pi/Desktop/RealAgent/src/AquaCrop_OsPy/AquaCrop_OsPy/calculate_vwc.py"
+        self.Metdf = self.dataMeteH.set_index(self.dataMeteH["Date"])
+
+        self.ETot_1, self.Raint_1 = (
+            float(self.Metdf.at[f"{self.todaym}", "ET0"]),
+            float(self.Metdf.at[f"{self.todaym}", "Rain(mm)"]),
         )
-        return
+        print(f"et = {self.ETot_1}")
+        self.meteoData = self.apiServiceMet.checkStation()
+        self.Etot, self.Raint = self.meteoData.EToD, self.meteoData.RainD
+        self.difRain, self.difEto = (
+            (self.Raint - self.Raint_1),
+            (self.Etot - self.ETot_1),
+        )
+
+        print(f"dif Rain {self.difRain}")
+        print(f"dif Rain {self.difEto}")
+
+        self.prescHistoryDF = pd.read_csv(
+            self.pahtHistoricalData,
+            sep="\t",
+        )
+        self.dataCropdf = self.prescHistoryDF.set_index(self.prescHistoryDF["Date"])
+        self.Kc = float(self.dataCropdf.at[f"{self.todaym}", "sp_crcoeff"])
+
+        self.vwc_1 = round(
+            (
+                self.sensors.allSensors[0] * (150 / 100)
+                + self.difRain
+                + self.IrrigAplied
+                - self.difEto * float(self.Kc)
+            )
+            * (100 / 150),
+            2,
+        )
+        print(f"vwc ={self.vwc_1}")
+        if self.vwc_1 > 60:
+            self.vwc_1 = 60
+        elif self.vwc_1 < 0:
+            self.vwc_1 = 0.0
+
+        self.vwc_2 = round(self.vwc_1 * (250 / 150), 2)
+        self.sensors.allSensors[0] = self.vwc_1
+        self.sensors.allSensors[1] = self.vwc_2
+        self.sensors.allSensors[4] = self.meteoData.Temp
+        self.sensors.allSensors[5] = self.meteoData.Hum
+        self.firebaseSensors()
+
+    def firebaseSensors(self):
+        self.today = date(datetime.now().year, datetime.now().month, datetime.now().day)
+        print(str(self.today))
+        self.hourUp = ""
+        self.minUp = ""
+        self.countUp = ""
+        if datetime.now().hour < 10:
+            self.hourUp = f"0{datetime.now().hour}"
+        else:
+            self.hourUp = f"{datetime.now().hour}"
+        if datetime.now().minute < 10:
+            self.minUp = f"0{datetime.now().minute}"
+        else:
+            self.minUp = f"{datetime.now().minute}"
+
+        if self.count < 10:
+            self.countUp = f"0{self.count}"
+        else:
+            self.countUp = f"{self.count}"
+
+        self.FB.SensorsDoc_ref.update(
+            {
+                ""
+                + f"{str(self.today)}.{self.countUp}": {
+                    "Hour": f"{self.hourUp}:{self.minUp}",
+                    "VWC1": self.sensors.allSensors[0],
+                    "VWC2": self.sensors.allSensors[1],
+                    "VWC3": self.sensors.allSensors[2],
+                    "VWC4": self.sensors.allSensors[3],
+                    "temperature": self.sensors.allSensors[4],
+                    "RH": self.sensors.allSensors[5],
+                    "soilTemperature": self.sensors.allSensors[6],
+                    "CanopyTemperature": self.sensors.allSensors[7],
+                    "CanopyTemperatureAmb": self.sensors.allSensors[8],
+                },
+            }
+        )
+        self.count += 1
 
 
 if __name__ == "__main__":
     MainSystem = Main()
-    # MainSystem.dailysimulation()
+    # MainSystem.RebootAgent()
+    # MainSystem.simulationMoistureSensors()
     # MainSystem.AquaCrop_os.main()
 
     timedelay.sleep(5)

@@ -8,10 +8,13 @@ import os.path
 from os import path, sep
 import asyncio
 import csv
+import time as timedelay
 
 
 class Aquacrop_os:
-    def __init__(self, dataProperties, documentWriteReturns, parametersAQ):
+    def __init__(
+        self, dataProperties, documentWriteReturns, parametersAQ, PathHist, PathMet
+    ):
 
         (
             self.crop,
@@ -40,15 +43,11 @@ class Aquacrop_os:
         self.parametersData = dataProperties
         self.DocumentsWrites = documentWriteReturns
         self.path_py = os.getcwd()
-        self.outputDir = "/home/sebastianc/Desktop/VirtualAgent/AquacropProsses/AquacropResults/Lote"  # ruta donde se encuentra el lote
         self.path_AQ_os = (
             "/home/sebastianc/Desktop/VirtualAgent/AquacropProsses/AquaCropOS_v50a"
         )
-        self.dir_weather = (
-            "/home/sebastianc/Desktop/VirtualAgent/storage/WheatherStationData.csv"
-        )
-        self.dir_lote = self.outputDir
-
+        self.dir_weather = PathMet
+        self.dir_Histori = PathHist
         """---------------------------Write document FileLocations.txt-------------------------"""
         self.FileLocationDir = f"{self.path_AQ_os}/FileLocations.txt"
         self.paragraphTowrite = self.DocumentsWrites.fileLocationDocument(
@@ -59,54 +58,10 @@ class Aquacrop_os:
         self.FileLocationDoc.write(self.paragraphTowrite)
         self.FileLocationDoc.close()
         """-----------------------------------------------------------------------------"""
-
         self.seedTime = datetime.strptime(self.seedDate, "%Y-%m-%d")
-        if path.isfile(f"{self.outputDir}/VWC_pres2.csv"):
-            print("dir exist")
-        else:
-            with open(
-                f"{self.outputDir}/VWC_pres2.csv",
-                "a",
-            ) as dataF:
-                writer = csv.writer(dataF, delimiter="\t")
-                writer.writerow(
-                    [
-                        "Date",
-                        "Tmax(C)",
-                        "Tmin(C)",
-                        "ET0",
-                        "Rain(mm)",
-                        "Irrigation(mm)",
-                        "depl",
-                        "ks",
-                        "ETcadj",
-                        "ETc",
-                        "eff_rain",
-                        "sp_crcoeff",
-                        "sp_rootdepth",
-                        "d_TAW",
-                        "d_MAD",
-                        "WC1",
-                        "WC2",
-                        "Total rain",
-                        "Total irrigation",
-                        "Yiel(ton/ha)",
-                        "WUE (Kg/m3)",
-                        "IWUE (Kg/m3)",
-                        "Prescription(mm)",
-                    ]
-                )
-                for i in range(self.EndDaysCrop + 1):
-                    self.DatesCrop = [str(self.seedTime + timedelta(days=i)).split()[0]]
-                    writer.writerow(
-                        self.DatesCrop,
-                    )
-
-            dataF.close()
 
         """direcciones de edicion de datos para simulacion"""
         self.clockDirection = f"{self.path_AQ_os}/Input/Clock.txt"
-
         pass
 
     def EditClock(self, seedTime, endCropDays):
@@ -123,12 +78,10 @@ class Aquacrop_os:
         self.directoryClock.write(self.paragraphTowrite)
         self.directoryClock.close()
 
-    def EditWeatherInput(self, prescriptionMethod, daysPassed):
+    def EditWeatherInput(self, daysPassed):
         self.TminAverage, self.TmaxAverage, self.ET0Average = 10, 20, 2.5
         # edita
-        self.prescHistoryDF = pd.read_csv(
-            f"{self.outputDir}/{prescriptionMethod}.csv", sep="\t"
-        )
+        self.prescHistoryDF = pd.read_csv(self.dir_Histori, sep="\t")
         self.writePrescDF = pd.DataFrame()
         self.writePrescDF = self.writePrescDF.fillna(0.0)
 
@@ -256,7 +209,7 @@ class Aquacrop_os:
         self.waterContentDoc.close()
         """-----------------------------------------------------------------------------"""
 
-    def Edit_Irr(self, prescriptionMethod, endCropDays):
+    def Edit_Irr(self, endCropDays):
         """---------------------write document IrrigationManagement----------------------"""
         self.IrrManagementDir = self.path_AQ_os + "/Input/IrrigationManagement.txt"
         self.IrrManagementDoc = open(self.IrrManagementDir, "r", errors="ignore")
@@ -276,9 +229,7 @@ class Aquacrop_os:
         """-----------------------------------------------------------------------------"""
         """---------------------write document IrrigationSchedule----------------------"""
         ##edita el riego
-        self.IrrHistoryDF = pd.read_csv(
-            f"{self.outputDir}/{prescriptionMethod}.csv", sep="\t"
-        )
+        self.IrrHistoryDF = pd.read_csv(self.dir_Histori, sep="\t")
         self.IrrHisttoWriteDF = pd.DataFrame()
         self.IrrHisttoWriteDF = self.IrrHisttoWriteDF.fillna(0)
 
@@ -343,7 +294,6 @@ class Aquacrop_os:
         os.chdir(self.path_py)
         print(p)
         time.sleep(5)
-
         self.CropGrowth = pd.read_csv(
             self.path_AQ_os + "/Output/Sample_CropGrowth.txt", sep="\t"
         )
@@ -356,11 +306,9 @@ class Aquacrop_os:
         self.WaterFluxes = CropGrowth = pd.read_csv(
             self.path_AQ_os + "/Output/Sample_WaterFluxes.txt", sep="\t"
         )
-
         return self.WaterFluxes, self.CropGrowth, self.FinalOutput, self.WaterContents
 
     def main(self):
-
         self.today = datetime.strptime(str(datetime.now()).split()[0], "%Y-%m-%d")
         self.seedTime = datetime.strptime(self.seedDate, "%Y-%m-%d")
         self.dayscrop = abs(self.today - self.seedTime).days
@@ -368,7 +316,7 @@ class Aquacrop_os:
         print("edit clock ...")
         self.EditClock(self.seedDate, self.EndDaysCrop)
         print("edit wheater ...")
-        self.EditWeatherInput("VWC_pres2", self.dayscrop)
+        self.EditWeatherInput(self.dayscrop)
         self.EditSoil(
             self.crop,
             self.saturationPoint,
@@ -379,7 +327,7 @@ class Aquacrop_os:
         print("edit Crop")
         self.EditCropInput(self.crop, self.seedDate, self.EndDaysCrop)
         print("edit Irrig")
-        self.Edit_Irr("VWC_pres2", self.EndDaysCrop)
+        self.Edit_Irr(self.EndDaysCrop)
 
         print("init aquacrop")
         (
@@ -388,7 +336,8 @@ class Aquacrop_os:
             self.FinalOutput,
             self.WaterContents,
         ) = asyncio.run(self.RunModel())
-        self.FinalYield = float(self.FinalOutput.at[0, "Yield"])
 
+        timedelay.sleep(5)
+        self.FinalYield = float(self.FinalOutput.at[0, "Yield"])
         print("end aquacrop")
         return self.FinalYield

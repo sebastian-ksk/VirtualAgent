@@ -12,6 +12,8 @@ class meteorologicalData:
     RainD: float
     TeMax: float
     TeMin: float
+    Temp: float
+    Hum: float
 
     @staticmethod
     def from_dict(obj: Any) -> "meteorologicalData":
@@ -22,4 +24,6 @@ class meteorologicalData:
         RainD = round(float(observation_davis["rain_day_in"]) * 25.4, 2)
         TeMax = round((float(observation_davis["temp_day_high_f"]) - 32) * (5 / 9), 2)
         TeMin = round((float(observation_davis["temp_day_low_f"]) - 32) * (5 / 9), 2)
-        return meteorologicalData(date, hour, EToD, RainD, TeMax, TeMin)
+        Temp = round((float(observation_davis["temp_in_f"]) - 32) * (5 / 9), 2)
+        Hum = round(float(observation_davis["relative_humidity_in"]), 2)
+        return meteorologicalData(date, hour, EToD, RainD, TeMax, TeMin, Temp, Hum)
